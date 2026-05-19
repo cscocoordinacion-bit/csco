@@ -1084,7 +1084,7 @@ const MESES={ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sept:9,sep:9,oct:10
 
 const ELB={"En ejecucion":"En ejecución","Rescision":"Rescisión","Reduccion":"Reducción","Paso a linea":"Pasó a línea","No lleva cert":"Sin certificación"};
 function elb(e){return ELB[e]||e;}
-const ECOL={Finalizada:"#22C55E","En ejecucion":"#3B82F6",Rescision:"#EF4444",Paralizada:"#f59e0b","Sin certificar":"#a78bfa","Pasó a línea":"#94a3b8",Baja:"#dc2626",Reemplazada:"#6b7280",Reducción:"#f97316","Error avance":"#db2777"};
+const ECOL={Finalizada:"#22C55E","En ejecucion":"#3B82F6",Rescision:"#EF4444",Paralizada:"#f59e0b","Sin certificar":"#a78bfa","Paso a linea":"#94a3b8","Pasó a línea":"#94a3b8",Baja:"#dc2626",Reemplazada:"#6b7280",Reduccion:"#f97316",Reducción:"#f97316","Error avance":"#db2777","No lleva cert":"#a78bfa","Sin cierre":"#64748b"};
 const LCOL={LBS:"#3b82f6",LD:"#22c55e",LGR:"#f59e0b",LM:"#ef4444",LS:"#a78bfa",LSM:"#0ea5e9",Varias:"#94a3b8"};
 const RCOL={VIA:"#3b82f6",CIVIL:"#22c55e",OA:"#a78bfa","ELÉCTRICA":"#f59e0b",SEÑALAMIENTO:"#0ea5e9"};
 const TTO={bodyColor:"#EAF0FA",titleColor:"#8BAAC8",backgroundColor:"#111E33",borderColor:"#2A4070",borderWidth:1,padding:8,bodyFont:{size:10},titleFont:{size:9}};
@@ -1187,7 +1187,7 @@ function normE(e){
   if(l.includes("baja")||l.includes("licitaci"))return"Baja";
   if(l.includes("reducci"))return"Reduccion";
   if(l.includes("reemplaz"))return"Reemplazada";
-  if(l.includes("linea")||l.includes("línea"))return"Pasó a línea";
+  if(l.includes("linea")||l.includes("línea"))return"Paso a linea";
   if(l.includes("sin certif"))return"Sin certificar";
   if(l.includes("error"))return"Error avance";
   return String(e).trim();
@@ -1210,7 +1210,7 @@ function parseObra(r){
   const fim=fi.match(/[-/](\d{2,4})$/);
   if(fim){let y=parseInt(fim[1]);y=y<100?2000+y:y;if(y>=2017&&y<=2027)anioInicio=y;}
   const emer=clean(r["Incluido en la Emergencia Ferroviaria"])?1:0;
-  const crit=atraso>200||reprog>=5?"Alto":(atraso>60||reprog>=2||estado==="Rescisión"||estado==="Paralizada"?"Medio":"Bajo");
+  const crit=atraso>200||reprog>=5?"Alto":(atraso>60||reprog>=2||estado==="Rescision"||estado==="Paralizada"?"Medio":"Bajo");
   const tam=mOC>=1e9?"Grande (>$1B)":mOC>=1e8?"Mediana ($100M–$1B)":mOC>=1e7?"Pequeña ($10M–$100M)":mOC>0?"Micro (<$10M)":"Sin monto";
   return{oc:clean(r["OC"]),expte:clean(r["Expte"]),den:clean(r["Denominación"]||r["Denominacion"]||""),linea:clean(r["Linea"]),tipo:clean(r["Tipo"]),rubro:clean(r["Rubro"]),contratista:clean(r["Contratista"]),seguimiento:clean(r["Seguimiento"]),fechaInicio:fi,estado,crit,tam,mOC,mCert,avance,desvio:mOC-mCert,atraso,reprog,plazoT,plazoI,emer,anioMes,anio,anioInicio,obs:clean(r["Observaciones"]).substring(0,120)};
 }
@@ -1766,7 +1766,15 @@ function switchTab(id,el){
   setTimeout(()=>Object.values(CH).forEach(c=>{try{c.resize();}catch{}}),60);
 }
 // CARGA
+
+function asegurarBaseCompleta(){
+  try{
+    const EMB=JSON.parse(atob(_OB64));
+    if(!ALL||ALL.length<EMB.length){ALL=EMB;FIL=[...ALL];loadedGS=false;}
+  }catch(e){}
+}
 function afterLoad(){
+  asegurarBaseCompleta();
   fillSels();buildUI();renderAll();
   document.getElementById("fcnt").textContent=fN(FIL.length)+" obras";
   setLB(100);
@@ -1786,8 +1794,12 @@ function reloadAll(){
   Papa.parse(GS_OBRAS,{download:true,header:true,skipEmptyLines:true,
     complete(res){
       if(res.data&&res.data.length>10){
-        ALL=res.data.filter(r=>{const oc=String(r["OC"]||"").trim();return oc&&oc!=="OC";}).map(parseObra);
-        FIL=[...ALL];loadedGS=true;setLB(50);
+        const EMB=JSON.parse(atob(_OB64));
+        const TMP=res.data.filter(r=>{const oc=String(r["OC"]||"").trim();return oc&&oc!=="OC";}).map(parseObra);
+        // Protección: si Google Sheets devuelve una lectura parcial/incompleta, se conserva la base embebida completa.
+        // Base completa verificada: 1132 obras (883 Finalizadas, 102 En ejecución, 66 Rescisiones incluyendo Baja).
+        if(TMP.length>=EMB.length){ALL=TMP;FIL=[...ALL];loadedGS=true;}else{ALL=EMB;FIL=[...ALL];loadedGS=false;}
+        setLB(50);
       } else {
         ALL=JSON.parse(atob(_OB64));FIL=[...ALL];
       }
@@ -1801,7 +1813,7 @@ function reloadAll(){
   certsDone=true;checkDone();
 }
 // INICIO INMEDIATO con datos embebidos, luego actualiza desde GS
-ALL=JSON.parse(atob(_OB64));FIL=[...ALL];CERTS=JSON.parse(atob(_CERT64));
+ALL=JSON.parse(atob(_OB64));FIL=[...ALL];CERTS=JSON.parse(atob(_CERT64));asegurarBaseCompleta();
 fillSels();buildUI();renderAll();
 document.getElementById("fcnt").textContent=fN(FIL.length)+" obras";
 document.getElementById("upd").textContent="Cargando datos en tiempo real...";
